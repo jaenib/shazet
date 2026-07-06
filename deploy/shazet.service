@@ -1,0 +1,16 @@
+[Unit]
+Description=shazet tracklist browser (jaenib.com/shazet)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/apps/shazet
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/srv/apps/shazet/.env
+ExecStart=/srv/apps/shazet/.venv/bin/uvicorn shazet.app:app --host 127.0.0.1 --port 8321
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

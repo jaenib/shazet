@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ record.title or ('set ' ~ record.id) }} — shazet{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>{{ record.title or ('set ' ~ record.id) }}</h1>
+  <p class="meta">
+    <span class="status status-{{ record.status }}">{{ record.status }}</span>
+    {% if record.source_url %}<a href="{{ record.source_url }}" rel="noopener" target="_blank">source</a>{% endif %}
+    {% if record.duration_seconds %}<span>{{ (record.duration_seconds // 60) | int }} min</span>{% endif %}
+    <span>{{ matched_count }}/{{ segment_count }} segments matched</span>
+    {% if record.cache_hits %}<span>{{ record.cache_hits }} answered from history</span>{% endif %}
+  </p>
+
+  {% if is_running %}
+  <div id="progress" class="progress" data-set-id="{{ record.id }}" data-base="{{ BASE }}">
+    <div class="progress-bar" style="width: {{ (100 * record.progress_done / record.progress_total) if record.progress_total else 3 }}%"></div>
+    <span class="progress-text">{{ record.status }} {{ record.progress_done }}/{{ record.progress_total or '?' }}</span>
+  </div>
+  {% endif %}
+
+  {% if record.error %}
+  <p class="error">{{ record.error }}</p>
+  {% endif %}
+
+  {% if entries %}
+  <p class="exports">
+    <a href="{{ BASE }}/sets/{{ record.id }}/export.txt">export .txt</a>
+    <a href="{{ BASE }}/sets/{{ record.id }}/export.cue">export .cue</a>
+  </p>
+  <table class="tracklist">
+    <thead>
+      <tr><th>time</th><th>track</th><th>genre</th><th>confidence</th><th>find</th></tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+      <tr>
+        <td class="mono">
+          {{ format_timestamp(entry.start_seconds) }}{% if entry.is_range %}–{{ format_timestamp(entry.end_seconds) }}{% endif %}
+        </td>
+        <td>
+          {% if entry.cover_url %}<img class="cover" src="{{ entry.cover_url }}" alt="" loading="lazy">{% endif %}
+          <strong>{{ entry.artist }}</strong> — {{ entry.title }}
+        </td>
+        <td>{% if entry.genre %}<span class="chip">{{ entry.genre }}</span>{% endif %}</td>
+        <td>
+          {% if entry.confidence is not none %}
+          {% set level = 'high' if entry.confidence >= CONFIDENCE_HIGH else ('low' if entry.confidence < CONFIDENCE_LOW else 'mid') %}
+          <span class="badge badge-{{ level }}" title="{{ entry.flags | join('; ') }}">{{ entry.confidence }}</span>
+          {% endif %}
+        </td>
+        <td class="mono links">
+          <a href="https://soundcloud.com/search?q={{ quote_plus(entry.artist ~ ' ' ~ entry.title) }}" target="_blank" rel="noopener">sc</a>
+          <a href="https://www.youtube.com/results?search_query={{ quote_plus(entry.artist ~ ' ' ~ entry.title) }}" target="_blank" rel="noopener">yt</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif not is_running %}
+  <p class="muted">No tracks recognized.</p>
+  {% endif %}
+</section>
+{% endblock %}

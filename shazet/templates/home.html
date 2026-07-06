@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}shazet — new tracklist{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Identify a set</h1>
+  <p class="hint">Paste a SoundCloud / YouTube URL or upload an audio file. Known audio is answered from history without re-shazaming.</p>
+  <form action="{{ BASE }}/submit" method="post" enctype="multipart/form-data" class="submit-form">
+    <input type="url" name="source_url" placeholder="https://soundcloud.com/... or https://youtube.com/...">
+    <div class="row">
+      <label class="file-label">
+        <input type="file" name="upload" accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aif,.aiff">
+        <span>or upload audio</span>
+      </label>
+      {% if token_required %}
+      <input type="password" name="token" placeholder="access code" required>
+      {% endif %}
+      <label class="checkbox"><input type="checkbox" name="force" value="1"> force fresh run</label>
+      <button type="submit">shazet it</button>
+    </div>
+  </form>
+</section>
+
+{% if running %}
+<section class="panel">
+  <h2>Running</h2>
+  <ul class="setlist">
+    {% for s in running %}
+    <li>
+      <a href="{{ BASE }}/sets/{{ s.id }}">{{ s.title or s.source_url or ('set ' ~ s.id) }}</a>
+      <span class="status status-{{ s.status }}">{{ s.status }}</span>
+      {% if s.progress_total %}<span class="muted">{{ s.progress_done }}/{{ s.progress_total }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Recent sets</h2>
+  {% if recent %}
+  <ul class="setlist">
+    {% for s in recent %}
+    <li>
+      <a href="{{ BASE }}/sets/{{ s.id }}">{{ s.title or s.source_url or ('set ' ~ s.id) }}</a>
+      <span class="status status-{{ s.status }}">{{ s.status }}</span>
+      <span class="muted">{{ s.created_at }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing yet. Feed me a set.</p>
+  {% endif %}
+</section>
+{% endblock %}

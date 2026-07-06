@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}tracks — shazet{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Tracks</h1>
+  <p class="hint">Every track ever recognized, across all sets.</p>
+  <form method="get" class="search-form">
+    <input type="search" name="q" value="{{ q }}" placeholder="search artist, title or genre...">
+    <button type="submit">search</button>
+  </form>
+  {% if tracks %}
+  <table class="tracklist">
+    <thead><tr><th>track</th><th>genre</th><th>sets</th><th>hits</th><th>best conf.</th><th>find</th></tr></thead>
+    <tbody>
+      {% for t in tracks %}
+      <tr>
+        <td>
+          {% if t.cover_url %}<img class="cover" src="{{ t.cover_url }}" alt="" loading="lazy">{% endif %}
+          <strong>{{ t.artist }}</strong> — {{ t.title }}
+        </td>
+        <td>{% if t.genre %}<span class="chip">{{ t.genre }}</span>{% endif %}</td>
+        <td class="mono"><a href="#" class="track-sets" data-track-key="{{ t.track_key }}" data-base="{{ BASE }}">{{ t.set_count }}</a></td>
+        <td class="mono">{{ t.segment_hits }}</td>
+        <td>
+          {% if t.best_confidence is not none %}
+          {% set level = 'high' if t.best_confidence >= CONFIDENCE_HIGH else ('low' if t.best_confidence < CONFIDENCE_LOW else 'mid') %}
+          <span class="badge badge-{{ level }}">{{ t.best_confidence }}</span>
+          {% endif %}
+        </td>
+        <td class="mono links">
+          <a href="https://soundcloud.com/search?q={{ quote_plus(t.artist ~ ' ' ~ t.title) }}" target="_blank" rel="noopener">sc</a>
+          <a href="https://www.youtube.com/results?search_query={{ quote_plus(t.artist ~ ' ' ~ t.title) }}" target="_blank" rel="noopener">yt</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No tracks{% if q %} matching “{{ q }}”{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}sets — shazet{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Sets</h1>
+  <form method="get" class="search-form">
+    <input type="search" name="q" value="{{ q }}" placeholder="search sets, artists, tracks...">
+    <button type="submit">search</button>
+  </form>
+  {% if sets %}
+  <table class="tracklist">
+    <thead><tr><th>set</th><th>status</th><th>length</th><th>created</th></tr></thead>
+    <tbody>
+      {% for s in sets %}
+      <tr>
+        <td><a href="{{ BASE }}/sets/{{ s.id }}">{{ s.title or s.source_url or ('set ' ~ s.id) }}</a>
+          {% if s.duplicate_of %}<span class="chip">duplicate of #{{ s.duplicate_of }}</span>{% endif %}
+        </td>
+        <td><span class="status status-{{ s.status }}">{{ s.status }}</span></td>
+        <td class="mono">{% if s.duration_seconds %}{{ (s.duration_seconds // 60) | int }} min{% endif %}</td>
+        <td class="mono">{{ s.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No sets{% if q %} matching “{{ q }}”{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}
