@@ -263,6 +263,118 @@ def list_tracks(conn, query: str = "", limit: int = 500) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def map_data(conn) -> dict:
+    """Aggregate the whole library into nodes and links for the map view.
+
+    Artists are the nodes (label size ~ how often we met them); links carry
+    co-occurrence weight (how many sets two artists shared). Each artist gets
+    its dominant genre so the map can cluster and color by genre.
+    """
+    artist_rows = conn.execute(
+        """
+        SELECT artist,
+               COUNT(*) AS hits,
+               COUNT(DISTINCT set_id) AS set_count,
+               COUNT(DISTINCT track_key) AS track_count
+        FROM segments
+        WHERE matched = 1 AND artist != ''
+        GROUP BY artist
+        ORDER BY hits DESC
+        LIMIT 1500
+        """
+    ).fetchall()
+
+    genre_rows = conn.execute(
+        """
+        SELECT artist, genre, COUNT(*) AS weight
+        FROM segments
+        WHERE matched = 1 AND artist != '' AND genre != ''
+        GROUP BY artist, genre
+        ORDER BY weight ASC
+        """
+    ).fetchall()
+    dominant_genre: dict[str, str] = {}
+    for row in genre_rows:  # ascending weight: the heaviest genre wins last
+        dominant_genre[row["artist"]] = row["genre"]
+
+    track_rows = conn.execute(
+        """
+        SELECT artist, title, COUNT(*) AS hits
+        FROM segments
+        WHERE matched = 1 AND artist != ''
+        GROUP BY artist, title
+        ORDER BY hits DESC
+        """
+    ).fetchall()
+    tracks_by_artist: dict[str, list[dict]] = {}
+    for row in track_rows:
+        tracks_by_artist.setdefault(row["artist"], []).append(
+            {"title": row["title"], "hits": row["hits"]}
+        )
+
+    pair_rows = conn.execute(
+        """
+        SELECT a.artist AS artist_a, b.artist AS artist_b, COUNT(DISTINCT a.set_id) AS weight
+        FROM (SELECT DISTINCT set_id, artist FROM segments WHERE matched = 1 AND artist != '') a
+        JOIN (SELECT DISTINCT set_id, artist FROM segments WHERE matched = 1 AND artist != '') b
+          ON a.set_id = b.set_id AND a.artist < b.artist
+        GROUP BY a.artist, b.artist
+        ORDER BY weight DESC
+        LIMIT 6000
+        """
+    ).fetchall()
+
+    artists = []
+    for row in artist_rows:
+        name = row["artist"]
+        artists.append(
+            {
+                "name": name,
+                "genre": dominant_genre.get(name, ""),
+                "hits": row["hits"],
+                "sets": row["set_count"],
+                "tracks": tracks_by_artist.get(name, [])[:12],
+                "track_count": row["track_count"],
+            }
+        )
+
+    known = {artist["name"] for artist in artists}
+    links = [
+        [row["artist_a"], row["artist_b"], row["weight"]]
+        for row in pair_rows
+        if row["artist_a"] in known and row["artist_b"] in known
+    ]
+
+    genres: dict[str, int] = {}
+    for artist in artists:
+        if artist["genre"]:
+            genres[artist["genre"]] = genres.get(artist["genre"], 0) + artist["hits"]
+
+    stats_row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT set_id) AS sets,
+               COUNT(DISTINCT track_key) AS tracks,
+               COUNT(DISTINCT artist) AS artists
+        FROM segments WHERE matched = 1
+        """
+    ).fetchone()
+
+    return {
+        "stats": {
+            "sets": stats_row["sets"],
+            "tracks": stats_row["tracks"],
+            "artists": stats_row["artists"],
+            "genres": len(genres),
+        },
+        "genres": [
+            {"name": name, "hits": hits}
+            for name, hits in sorted(genres.items(), key=lambda item: item[1], reverse=True)
+        ],
+        "artists": artists,
+        "links": links,
+    }
+
+
 def sets_for_track(conn, track_key: str) -> list[dict]:
     rows = conn.execute(
         """

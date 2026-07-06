@@ -52,6 +52,36 @@ class DbTests(unittest.TestCase):
 
         self.assertEqual(found["id"], done)
 
+    def test_map_data_aggregates_artists_links_and_genres(self):
+        with db.connect(self.db_path) as conn:
+            set_a = db.create_set(conn, "Set A", "http://x/a", "url", 60)
+            set_b = db.create_set(conn, "Set B", "http://x/b", "url", 60)
+            # Alpha appears in both sets; Beta only in set A alongside Alpha.
+            db.insert_segment(conn, set_a, 0, 0, "a0", {"artist": "Alpha", "title": "One", "track_key": "k1", "genre": "House"})
+            db.insert_segment(conn, set_a, 1, 60, "a1", {"artist": "Alpha", "title": "One", "track_key": "k1", "genre": "House"})
+            db.insert_segment(conn, set_a, 2, 120, "a2", {"artist": "Beta", "title": "Two", "track_key": "k2", "genre": "Techno"})
+            db.insert_segment(conn, set_b, 0, 0, "b0", {"artist": "Alpha", "title": "Three", "track_key": "k3", "genre": "Trance"})
+            db.insert_segment(conn, set_b, 1, 60, "b1", {"artist": "Alpha", "title": "Three", "track_key": "k3", "genre": "House"})
+
+            data = db.map_data(conn)
+
+        self.assertEqual(data["stats"]["sets"], 2)
+        self.assertEqual(data["stats"]["artists"], 2)
+
+        by_name = {artist["name"]: artist for artist in data["artists"]}
+        self.assertEqual(by_name["Alpha"]["sets"], 2)
+        self.assertEqual(by_name["Alpha"]["genre"], "House")  # dominant across sets
+        self.assertEqual(by_name["Alpha"]["track_count"], 2)
+        self.assertEqual(by_name["Beta"]["sets"], 1)
+
+        self.assertEqual(len(data["links"]), 1)
+        artist_a, artist_b, weight = data["links"][0]
+        self.assertEqual({artist_a, artist_b}, {"Alpha", "Beta"})
+        self.assertEqual(weight, 1)
+
+        genre_names = [genre["name"] for genre in data["genres"]]
+        self.assertIn("House", genre_names)
+
     def test_track_aggregation(self):
         with db.connect(self.db_path) as conn:
             set_id = db.create_set(conn, "Set", "http://x/agg", "url", 60)

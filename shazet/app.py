@@ -183,6 +183,19 @@ def _entries_for_export(set_id: int):
     return tracklist.build_entries(segments, int(record["segment_length"])), record
 
 
+@router.get("/map", response_class=HTMLResponse)
+def map_page(request: Request):
+    with db.connect() as conn:
+        data = db.map_data(conn)
+    return templates.TemplateResponse("map.html", {"request": request, "stats": data["stats"]})
+
+
+@router.get("/api/map")
+def map_api():
+    with db.connect() as conn:
+        return JSONResponse(db.map_data(conn))
+
+
 @router.get("/tracks", response_class=HTMLResponse)
 def tracks_index(request: Request, q: str = ""):
     with db.connect() as conn:
