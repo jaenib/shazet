@@ -76,4 +76,8 @@ ssh root@82.165.45.100 "cd /srv/apps/shazet && git pull --ff-only \
 |----------|---------|
 | `SHAZET_TOKEN` | Access code required to submit jobs (browsing is public). Empty = open submissions. |
 | `SHAZET_DATA_DIR` | Data directory (default `./data`). |
-| `SHAZET_KEEP_AUDIO` | `1` keeps downloaded audio after analysis (default: deleted, hash kept for dedupe). |
+
+Audio is a working file only: downloads, uploads, and segments are always
+deleted once a run finishes (or fails), and startup sweeps away anything
+left behind by interrupted runs. Only the sqlite DB (tracklists, hashes for
+dedupe, fingerprint cache) persists.

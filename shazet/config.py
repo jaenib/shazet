@@ -22,10 +22,6 @@ CONFIDENCE_HIGH = 70
 CONFIDENCE_LOW = 40
 
 
-def keep_audio() -> bool:
-    return os.environ.get("SHAZET_KEEP_AUDIO", "").strip().lower() in {"1", "true", "yes"}
-
-
 def submit_token() -> str:
     return os.environ.get("SHAZET_TOKEN", "").strip()
 

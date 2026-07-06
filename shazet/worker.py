@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import queue
+import shutil
 import threading
 import traceback
 
@@ -47,6 +48,12 @@ def _worker_loop():
             except Exception:
                 pass
         finally:
+            # Audio and segments are working files only: never keep them,
+            # whether the run succeeded, deduplicated, or failed.
+            try:
+                _cleanup(set_id)
+            except Exception:
+                pass
             _jobs.task_done()
 
 
@@ -72,7 +79,6 @@ def process_set(set_id: int):
                 duplicate_of=existing["id"],
                 completed_at=_now(conn),
             )
-            _cleanup(set_id)
             return
 
     with db.connect() as conn:
@@ -91,8 +97,6 @@ def process_set(set_id: int):
             db.update_segment_score(conn, segment_id, confidence, flags)
         conn.commit()
         db.update_set(conn, set_id, status="done", completed_at=_now(conn))
-
-    _cleanup(set_id)
 
 
 def _fetch_audio(set_id: int, record: dict):
@@ -139,8 +143,39 @@ async def _recognize_all(set_id: int, segment_files, segment_length: int) -> int
 
 def _cleanup(set_id: int):
     segmenter.cleanup_segments(set_id)
-    if not config.keep_audio():
-        ingest.cleanup_audio(set_id)
+    ingest.cleanup_audio(set_id)
+
+
+def cleanup_orphans():
+    """Delete working files that no in-flight set owns.
+
+    Catches everything the per-job cleanup can miss: files from runs
+    interrupted by a crash or restart, sets deleted from the DB, and
+    yt-dlp .part remnants. Runs at startup before jobs are requeued.
+    """
+    config.ensure_dirs()
+    with db.connect() as conn:
+        active = {row["id"] for row in db.active_sets(conn)}
+
+    for path in config.AUDIO_DIR.iterdir():
+        if _owner_set_id(path.name) in active:
+            continue
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in config.SEGMENT_DIR.iterdir():
+        if _owner_set_id(path.name) in active:
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _owner_set_id(name: str):
+    try:
+        return int(name.split(".")[0])
+    except ValueError:
+        return None
 
 
 def _now(conn) -> str:

@@ -28,6 +28,7 @@ templates.env.globals["quote_plus"] = quote_plus
 def startup():
     config.ensure_dirs()
     db.init_db()
+    worker.cleanup_orphans()
     worker.start_worker()
     worker.requeue_unfinished()
 
@@ -126,10 +127,13 @@ async def submit(request: Request):
                     if not chunk:
                         break
                     out.write(chunk)
-        except ingest.IngestError as exc:
+        except Exception as exc:
+            ingest.cleanup_audio(set_id)
             with db.connect() as conn:
                 db.update_set(conn, set_id, status="failed", error=str(exc))
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if isinstance(exc, ingest.IngestError):
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise
 
     worker.enqueue(set_id)
     return RedirectResponse(f"{BASE}/sets/{set_id}", status_code=303)
