@@ -4,7 +4,7 @@ import hmac
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -65,19 +65,28 @@ def home(request: Request):
     )
 
 
+# Starlette rejects multipart parts above ~1MB by default; sets are far
+# bigger, so parse the form manually with a limit matching nginx's
+# client_max_body_size.
+MAX_UPLOAD_BYTES = 400 * 1024 * 1024
+
+
 @router.post("/submit")
-async def submit(
-    request: Request,
-    source_url: str = Form(""),
-    token: str = Form(""),
-    force: str = Form(""),
-    upload: UploadFile | None = File(None),
-):
+async def submit(request: Request):
+    try:
+        form = await request.form(max_part_size=MAX_UPLOAD_BYTES)
+    except TypeError:  # older starlette without the max_part_size kwarg
+        form = await request.form()
+
+    source_url = str(form.get("source_url") or "").strip()
+    token = str(form.get("token") or "")
+    force = str(form.get("force") or "")
+    upload = form.get("upload")
+
     if not _submission_allowed(token):
         raise HTTPException(status_code=403, detail="wrong access code")
 
-    source_url = source_url.strip()
-    has_upload = upload is not None and (upload.filename or "").strip()
+    has_upload = hasattr(upload, "filename") and (upload.filename or "").strip()
 
     if not source_url and not has_upload:
         raise HTTPException(status_code=400, detail="provide a URL or an audio upload")
@@ -109,9 +118,14 @@ async def submit(
             )
 
     if has_upload:
-        payload = await upload.read()
         try:
-            ingest.store_upload(payload, upload.filename, set_id)
+            destination = ingest.upload_destination(upload.filename, set_id)
+            with open(destination, "wb") as out:
+                while True:
+                    chunk = await upload.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    out.write(chunk)
         except ingest.IngestError as exc:
             with db.connect() as conn:
                 db.update_set(conn, set_id, status="failed", error=str(exc))

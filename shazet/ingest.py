@@ -93,15 +93,18 @@ def download_url(source_url: str, set_id: int) -> tuple[Path, str]:
     return audio_path, title
 
 
-def store_upload(payload: bytes, original_name: str, set_id: int) -> tuple[Path, str]:
+def upload_destination(original_name: str, set_id: int) -> Path:
     config.ensure_dirs()
     suffix = Path(original_name).suffix.lower() or ".mp3"
     if suffix not in {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".aif", ".aiff"}:
         raise IngestError(f"unsupported upload format: {suffix}")
-    audio_path = config.AUDIO_DIR / f"{set_id}{suffix}"
+    return config.AUDIO_DIR / f"{set_id}{suffix}"
+
+
+def store_upload(payload: bytes, original_name: str, set_id: int) -> tuple[Path, str]:
+    audio_path = upload_destination(original_name, set_id)
     audio_path.write_bytes(payload)
-    title = Path(original_name).stem
-    return audio_path, title
+    return audio_path, Path(original_name).stem
 
 
 def cleanup_audio(set_id: int):
