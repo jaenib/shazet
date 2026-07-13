@@ -3,7 +3,7 @@
 {% block content %}
 <section class="panel">
   <h1>Identify a set</h1>
-  <p class="hint">Paste a SoundCloud / YouTube URL or upload an audio file. Known audio is answered from history without re-shazaming.</p>
+  <p class="hint">Paste a SoundCloud / YouTube URL or upload an audio file. Known audio is answered from history without re-shazaming. Playlist links (SoundCloud sets, Spotify, Tidal) are added to the library by their metadata alone — nothing is downloaded.</p>
   <form action="{{ BASE }}/submit" method="post" enctype="multipart/form-data" class="submit-form">
     <input type="url" name="source_url" placeholder="https://soundcloud.com/... or https://youtube.com/...">
     <div class="row">

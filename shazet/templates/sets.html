@@ -14,6 +14,7 @@
       {% for s in sets %}
       <tr>
         <td><a href="{{ BASE }}/sets/{{ s.id }}">{{ s.title or s.source_url or ('set ' ~ s.id) }}</a>
+          {% if s.source_kind == 'playlist' %}<span class="chip">playlist</span>{% endif %}
           {% if s.duplicate_of %}<span class="chip">duplicate of #{{ s.duplicate_of }}</span>{% endif %}
         </td>
         <td><span class="status status-{{ s.status }}">{{ s.status }}</span></td>

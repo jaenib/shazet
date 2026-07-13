@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, ingest, tracklist, worker
+from . import config, db, ingest, playlists, tracklist, worker
 
 BASE = config.BASE_PATH
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
@@ -114,11 +114,14 @@ async def submit(request: Request):
                 added_by=added_by,
             )
         else:
+            # Playlist URLs (SoundCloud sets, Spotify, Tidal) are ingested as
+            # metadata-only track lists: no audio is downloaded or shazammed.
+            kind = "playlist" if playlists.platform(source_url) else "url"
             set_id = db.create_set(
                 conn,
                 title="",
                 source_url=source_url,
-                source_kind="url",
+                source_kind=kind,
                 segment_length=config.SEGMENT_LENGTH_SECONDS,
                 added_by=added_by,
             )
@@ -180,8 +183,9 @@ def set_detail(request: Request, set_id: int):
 @router.get("/sets/{set_id}/export.txt", response_class=PlainTextResponse)
 def export_txt(set_id: int):
     entries, record = _entries_for_export(set_id)
+    with_timestamps = record["source_kind"] != "playlist"
     return PlainTextResponse(
-        tracklist.entries_to_text(entries),
+        tracklist.entries_to_text(entries, with_timestamps=with_timestamps),
         headers={"Content-Disposition": f'attachment; filename="set-{set_id}-tracklist.txt"'},
     )
 

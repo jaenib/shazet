@@ -72,8 +72,10 @@
       cell.colSpan = row.children.length;
       cell.innerHTML = sets
         .map((s) => {
+          const anchor = `<a href="${base}/sets/${s.id}">${s.title || "set " + s.id}</a>`;
+          if (s.source_kind === "playlist") return anchor; // playlists have no timeline
           const t = new Date(s.offset_seconds * 1000).toISOString().substr(11, 8);
-          return `<a href="${base}/sets/${s.id}">${s.title || "set " + s.id}</a> <span class="mono">@ ${t}</span>`;
+          return `${anchor} <span class="mono">@ ${t}</span>`;
         })
         .join(" &nbsp;·&nbsp; ");
       detail.appendChild(cell);

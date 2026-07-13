@@ -66,6 +66,7 @@ class DbTests(unittest.TestCase):
             data = db.map_data(conn)
 
         self.assertEqual(data["stats"]["sets"], 2)
+        self.assertEqual(data["stats"]["playlists"], 0)
         self.assertEqual(data["stats"]["artists"], 2)
 
         by_name = {artist["name"]: artist for artist in data["artists"]}
@@ -75,7 +76,7 @@ class DbTests(unittest.TestCase):
         self.assertEqual(by_name["Beta"]["sets"], 1)
 
         self.assertEqual(len(data["links"]), 1)
-        artist_a, artist_b, weight = data["links"][0]
+        artist_a, artist_b, weight, link_sets = data["links"][0]
         self.assertEqual({artist_a, artist_b}, {"Alpha", "Beta"})
         self.assertEqual(weight, 1)
 
@@ -110,6 +111,35 @@ class DbTests(unittest.TestCase):
         with db.connect(legacy_path) as conn:
             row = conn.execute("SELECT added_by FROM sets").fetchone()
         self.assertEqual(row["added_by"], "")
+
+    def test_map_data_tags_sources_and_artist_set_ids(self):
+        with db.connect(self.db_path) as conn:
+            set_id = db.create_set(conn, "Set A", "http://x/a", "url", 60, added_by="miko")
+            playlist_id = db.create_set(
+                conn, "Playlist P", "http://open.spotify.com/playlist/x", "playlist", 60, added_by="ana"
+            )
+            db.insert_segment(conn, set_id, 0, 0, "a0", {"artist": "Alpha", "title": "One", "track_key": "k1"})
+            db.insert_segment(conn, playlist_id, 0, 0, "", {"artist": "Alpha", "title": "Two", "track_key": "k2"})
+            db.insert_segment(conn, playlist_id, 1, 0, "", {"artist": "Gamma", "title": "Three", "track_key": "k3"})
+
+            data = db.map_data(conn)
+
+        self.assertEqual(data["stats"]["sets"], 1)
+        self.assertEqual(data["stats"]["playlists"], 1)
+
+        sources = {source["id"]: source for source in data["sources"]}
+        self.assertEqual(sources[set_id]["kind"], "set")
+        self.assertEqual(sources[set_id]["added_by"], "miko")
+        self.assertEqual(sources[playlist_id]["kind"], "playlist")
+        self.assertEqual(sources[playlist_id]["title"], "Playlist P")
+
+        by_name = {artist["name"]: artist for artist in data["artists"]}
+        self.assertEqual(sorted(by_name["Alpha"]["set_ids"]), sorted([set_id, playlist_id]))
+        self.assertEqual(by_name["Gamma"]["set_ids"], [playlist_id])
+
+        # Alpha/Gamma co-occur only in the playlist, and the link carries it.
+        artist_a, artist_b, weight, link_sets = data["links"][0]
+        self.assertEqual(link_sets, [playlist_id])
 
     def test_track_aggregation(self):
         with db.connect(self.db_path) as conn:

@@ -1,14 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ record.title or ('set ' ~ record.id) }} — shazet{% endblock %}
 {% block content %}
+{% set is_playlist = record.source_kind == 'playlist' %}
 <section class="panel">
   <h1>{{ record.title or ('set ' ~ record.id) }}</h1>
   <p class="meta">
     <span class="status status-{{ record.status }}">{{ record.status }}</span>
+    {% if is_playlist %}<span class="chip">playlist</span>{% endif %}
     {% if record.source_url %}<a href="{{ record.source_url }}" rel="noopener" target="_blank">source</a>{% endif %}
     {% if record.duration_seconds %}<span>{{ (record.duration_seconds // 60) | int }} min</span>{% endif %}
     {% if record.added_by %}<span>added by <span class="chip">{{ record.added_by }}</span></span>{% endif %}
+    {% if is_playlist %}
+    <span>{{ segment_count }} tracks</span>
+    {% else %}
     <span>{{ matched_count }}/{{ segment_count }} segments matched</span>
+    {% endif %}
     {% if record.cache_hits %}<span>{{ record.cache_hits }} answered from history</span>{% endif %}
   </p>
 
@@ -26,29 +32,35 @@
   {% if entries %}
   <p class="exports">
     <a href="{{ BASE }}/sets/{{ record.id }}/export.txt">export .txt</a>
-    <a href="{{ BASE }}/sets/{{ record.id }}/export.cue">export .cue</a>
+    {% if not is_playlist %}<a href="{{ BASE }}/sets/{{ record.id }}/export.cue">export .cue</a>{% endif %}
   </p>
   <table class="tracklist">
     <thead>
-      <tr><th>time</th><th>track</th><th>genre</th><th>confidence</th><th>find</th></tr>
+      <tr>{% if not is_playlist %}<th>time</th>{% else %}<th>#</th>{% endif %}<th>track</th><th>genre</th>{% if not is_playlist %}<th>confidence</th>{% endif %}<th>find</th></tr>
     </thead>
     <tbody>
       {% for entry in entries %}
       <tr>
         <td class="mono">
+          {% if is_playlist %}
+          {{ loop.index }}
+          {% else %}
           {{ format_timestamp(entry.start_seconds) }}{% if entry.is_range %}–{{ format_timestamp(entry.end_seconds) }}{% endif %}
+          {% endif %}
         </td>
         <td>
           {% if entry.cover_url %}<img class="cover" src="{{ entry.cover_url }}" alt="" loading="lazy">{% endif %}
           <strong>{{ entry.artist }}</strong> — {{ entry.title }}
         </td>
         <td>{% if entry.genre %}<span class="chip">{{ entry.genre }}</span>{% endif %}</td>
+        {% if not is_playlist %}
         <td>
           {% if entry.confidence is not none %}
           {% set level = 'high' if entry.confidence >= CONFIDENCE_HIGH else ('low' if entry.confidence < CONFIDENCE_LOW else 'mid') %}
           <span class="badge badge-{{ level }}" title="{{ entry.flags | join('; ') }}">{{ entry.confidence }}</span>
           {% endif %}
         </td>
+        {% endif %}
         <td class="mono links">
           <a href="https://soundcloud.com/search?q={{ quote_plus(entry.artist ~ ' ' ~ entry.title) }}" target="_blank" rel="noopener">sc</a>
           <a href="https://www.youtube.com/results?search_query={{ quote_plus(entry.artist ~ ' ' ~ entry.title) }}" target="_blank" rel="noopener">yt</a>
@@ -58,7 +70,7 @@
     </tbody>
   </table>
   {% elif not is_running %}
-  <p class="muted">No tracks recognized.</p>
+  <p class="muted">No tracks {% if is_playlist %}found{% else %}recognized{% endif %}.</p>
   {% endif %}
 </section>
 {% endblock %}

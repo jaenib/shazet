@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
-from shazamio import Shazam
-
 from . import config
 
 
@@ -30,6 +28,11 @@ async def recognize_file(file_path: str) -> Optional[dict]:
 
     Raises the last error when Shazam stays unreachable after retries.
     """
+    try:  # deploy-time dependency; tests run without it
+        from shazamio import Shazam
+    except ModuleNotFoundError as exc:  # pragma: no cover
+        raise RuntimeError("shazamio is not installed") from exc
+
     last_error: Optional[Exception] = None
     endpoint_countries = ("US", "GB")
     for attempt in range(1, config.RECOGNITION_RETRIES + 1):

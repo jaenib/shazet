@@ -8,7 +8,7 @@ import shutil
 import threading
 import traceback
 
-from . import config, db, ingest, recognizer, scoring, segmenter
+from . import config, db, ingest, playlists, recognizer, scoring, segmenter
 
 _jobs: "queue.Queue[int]" = queue.Queue()
 _worker_started = threading.Lock()
@@ -63,6 +63,10 @@ def process_set(set_id: int):
     if record is None or record["status"] in {"done", "failed"}:
         return
 
+    if record["source_kind"] == "playlist":
+        _process_playlist(set_id, record)
+        return
+
     audio_path = _fetch_audio(set_id, record)
 
     sha256 = ingest.sha256_of_file(audio_path)
@@ -97,6 +101,37 @@ def process_set(set_id: int):
             db.update_segment_score(conn, segment_id, confidence, flags)
         conn.commit()
         db.update_set(conn, set_id, status="done", completed_at=_now(conn))
+
+
+def _process_playlist(set_id: int, record: dict):
+    """Playlists carry their own metadata: store the tracks directly, no audio."""
+    with db.connect() as conn:
+        db.update_set(conn, set_id, status="fetching")
+
+    title, tracks = playlists.fetch_playlist(record["source_url"])
+    if not tracks:
+        raise ingest.IngestError("the playlist has no readable tracks")
+
+    with db.connect() as conn:
+        if title and not record["title"]:
+            db.update_set(conn, set_id, title=title)
+        db.update_set(conn, set_id, progress_total=len(tracks))
+        for index, track in enumerate(tracks):
+            artist = str(track.get("artist") or "")
+            track_title = str(track.get("title") or "")
+            match = {
+                "artist": artist,
+                "title": track_title,
+                "track_key": f"{artist.lower()}|{track_title.lower()}",
+                "genre": "",
+                "album": "",
+                "cover_url": str(track.get("cover_url") or ""),
+                "bpm": None,
+            }
+            db.insert_segment(conn, set_id, index, 0, "", match)
+        db.update_set(
+            conn, set_id, progress_done=len(tracks), status="done", completed_at=_now(conn)
+        )
 
 
 def _fetch_audio(set_id: int, record: dict):

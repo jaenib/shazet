@@ -58,10 +58,16 @@ def build_entries(segments: Sequence[dict], segment_length: int) -> list[Entry]:
     return entries
 
 
-def entries_to_text(entries: Sequence[Entry]) -> str:
-    """setseeker-compatible tracklist text ("[HH:MM:SS] Artist - Title")."""
+def entries_to_text(entries: Sequence[Entry], with_timestamps: bool = True) -> str:
+    """setseeker-compatible tracklist text ("[HH:MM:SS] Artist - Title").
+
+    Playlists have no meaningful timestamps, so they export as plain lines.
+    """
     lines = ["Final Tracklist:"]
     for entry in entries:
+        if not with_timestamps:
+            lines.append(f"{entry.artist} - {entry.title}")
+            continue
         start = format_timestamp(entry.start_seconds)
         if entry.is_range:
             timestamp = f"{start}-{format_timestamp(entry.end_seconds)}"

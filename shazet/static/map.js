@@ -53,7 +53,7 @@
 
     const byName = new Map(nodes.map((node) => [node.name, node]));
     const links = data.links
-      .map(([a, b, weight]) => ({ a: byName.get(a), b: byName.get(b), weight }))
+      .map(([a, b, weight, sets]) => ({ a: byName.get(a), b: byName.get(b), weight, sets: sets || [] }))
       .filter((link) => link.a && link.b);
 
     const iterations = Math.min(220, 80 + nodes.length * 2);
@@ -223,6 +223,79 @@
     panel.hidden = true;
   });
 
+  // --- source toggles ---------------------------------------------------------
+  // Every artist knows which sources (sets/playlists) it appeared in; unticking
+  // a source hides artists that only exist through it. Positions stay fixed so
+  // the map remains recognizable while filtering.
+  function buildSourceToggles(data, result) {
+    const wrap = document.getElementById("map-sources");
+    const list = document.getElementById("map-sources-list");
+    if (!wrap || !list || !(data.sources || []).length) return;
+    wrap.hidden = false;
+
+    const enabled = new Set(data.sources.map((source) => source.id));
+
+    function applyFilter() {
+      for (const node of result.nodes) {
+        if (!node.el) continue;
+        const visible = (node.set_ids || []).some((id) => enabled.has(id));
+        node.el.style.display = visible ? "" : "none";
+      }
+    }
+
+    const kinds = [
+      ["set", "sets"],
+      ["playlist", "playlists"],
+    ];
+    for (const [kind, heading] of kinds) {
+      const sources = data.sources.filter((source) => source.kind === kind);
+      if (!sources.length) continue;
+
+      const header = document.createElement("div");
+      header.className = "map-sources-group";
+      const title = document.createElement("span");
+      title.textContent = heading;
+      header.appendChild(title);
+      for (const [label, on] of [["all", true], ["none", false]]) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          for (const source of sources) {
+            enabled[on ? "add" : "delete"](source.id);
+            source.checkbox.checked = on;
+          }
+          applyFilter();
+        });
+        header.appendChild(btn);
+      }
+      list.appendChild(header);
+
+      for (const source of sources) {
+        const row = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.addEventListener("change", () => {
+          enabled[checkbox.checked ? "add" : "delete"](source.id);
+          applyFilter();
+        });
+        source.checkbox = checkbox;
+        row.appendChild(checkbox);
+        const text = document.createElement("span");
+        text.textContent = source.title;
+        text.title = source.added_by ? `${source.title} — added by ${source.added_by}` : source.title;
+        row.appendChild(text);
+        list.appendChild(row);
+      }
+    }
+
+    // Keep panel interaction from panning the map or closing the artist panel.
+    for (const type of ["pointerdown", "click", "wheel"]) {
+      wrap.addEventListener(type, (event) => event.stopPropagation());
+    }
+  }
+
   // --- pan & zoom ------------------------------------------------------------
   let dragging = null;
   viewport.addEventListener("pointerdown", (event) => {
@@ -265,6 +338,7 @@
       }
       const result = layout(data);
       render(result);
+      buildSourceToggles(data, result);
       canvas.classList.add("settled");
     });
 })();

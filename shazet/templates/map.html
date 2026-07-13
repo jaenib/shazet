@@ -8,11 +8,15 @@
     color is genre, size is how often you've met them. Scroll to zoom, drag to wander, click a name for details.
   </p>
   <p class="map-stats mono">
-    {{ stats.sets }} sets · {{ stats.tracks }} tracks · {{ stats.artists }} artists · {{ stats.genres }} genres
+    {{ stats.sets }} sets · {{ stats.playlists }} playlists · {{ stats.tracks }} tracks · {{ stats.artists }} artists · {{ stats.genres }} genres
   </p>
 </section>
 
 <div id="map-viewport" class="map-viewport" data-base="{{ BASE }}">
+  <details id="map-sources" class="map-sources" hidden>
+    <summary>sources</summary>
+    <div id="map-sources-list"></div>
+  </details>
   <div id="map-canvas" class="map-canvas"></div>
   <div id="map-empty" class="map-empty" hidden>
     <p>Nothing here yet.</p>

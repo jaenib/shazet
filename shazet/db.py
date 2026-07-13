@@ -285,7 +285,8 @@ def map_data(conn) -> dict:
         SELECT artist,
                COUNT(*) AS hits,
                COUNT(DISTINCT set_id) AS set_count,
-               COUNT(DISTINCT track_key) AS track_count
+               COUNT(DISTINCT track_key) AS track_count,
+               GROUP_CONCAT(DISTINCT set_id) AS set_ids
         FROM segments
         WHERE matched = 1 AND artist != ''
         GROUP BY artist
@@ -324,7 +325,8 @@ def map_data(conn) -> dict:
 
     pair_rows = conn.execute(
         """
-        SELECT a.artist AS artist_a, b.artist AS artist_b, COUNT(DISTINCT a.set_id) AS weight
+        SELECT a.artist AS artist_a, b.artist AS artist_b, COUNT(DISTINCT a.set_id) AS weight,
+               GROUP_CONCAT(DISTINCT a.set_id) AS set_ids
         FROM (SELECT DISTINCT set_id, artist FROM segments WHERE matched = 1 AND artist != '') a
         JOIN (SELECT DISTINCT set_id, artist FROM segments WHERE matched = 1 AND artist != '') b
           ON a.set_id = b.set_id AND a.artist < b.artist
@@ -345,14 +347,35 @@ def map_data(conn) -> dict:
                 "sets": row["set_count"],
                 "tracks": tracks_by_artist.get(name, [])[:12],
                 "track_count": row["track_count"],
+                "set_ids": _split_ids(row["set_ids"]),
             }
         )
 
     known = {artist["name"] for artist in artists}
     links = [
-        [row["artist_a"], row["artist_b"], row["weight"]]
+        [row["artist_a"], row["artist_b"], row["weight"], _split_ids(row["set_ids"])]
         for row in pair_rows
         if row["artist_a"] in known and row["artist_b"] in known
+    ]
+
+    # Every source (set or playlist) that contributed matched segments; the
+    # map uses these to offer per-source visibility toggles.
+    source_rows = conn.execute(
+        """
+        SELECT s.id, s.title, s.source_kind, s.added_by
+        FROM sets s
+        WHERE EXISTS (SELECT 1 FROM segments g WHERE g.set_id = s.id AND g.matched = 1)
+        ORDER BY s.created_at DESC
+        """
+    ).fetchall()
+    sources = [
+        {
+            "id": row["id"],
+            "title": row["title"] or f"set {row['id']}",
+            "kind": "playlist" if row["source_kind"] == "playlist" else "set",
+            "added_by": row["added_by"],
+        }
+        for row in source_rows
     ]
 
     genres: dict[str, int] = {}
@@ -362,8 +385,7 @@ def map_data(conn) -> dict:
 
     stats_row = conn.execute(
         """
-        SELECT COUNT(DISTINCT set_id) AS sets,
-               COUNT(DISTINCT track_key) AS tracks,
+        SELECT COUNT(DISTINCT track_key) AS tracks,
                COUNT(DISTINCT artist) AS artists
         FROM segments WHERE matched = 1
         """
@@ -371,7 +393,8 @@ def map_data(conn) -> dict:
 
     return {
         "stats": {
-            "sets": stats_row["sets"],
+            "sets": sum(1 for source in sources if source["kind"] == "set"),
+            "playlists": sum(1 for source in sources if source["kind"] == "playlist"),
             "tracks": stats_row["tracks"],
             "artists": stats_row["artists"],
             "genres": len(genres),
@@ -382,13 +405,20 @@ def map_data(conn) -> dict:
         ],
         "artists": artists,
         "links": links,
+        "sources": sources,
     }
+
+
+def _split_ids(joined) -> list[int]:
+    if not joined:
+        return []
+    return [int(part) for part in str(joined).split(",") if part]
 
 
 def sets_for_track(conn, track_key: str) -> list[dict]:
     rows = conn.execute(
         """
-        SELECT DISTINCT s.id, s.title, g.offset_seconds
+        SELECT DISTINCT s.id, s.title, s.source_kind, g.offset_seconds
         FROM segments g JOIN sets s ON s.id = g.set_id
         WHERE g.track_key = ? AND g.matched = 1
         ORDER BY s.id DESC

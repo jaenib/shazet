@@ -11,6 +11,12 @@ per-track **confidence score**. Lives at `https://jaenib.com/shazet/`.
 - **Ingest**: any yt-dlp-supported URL (SoundCloud, YouTube, Mixcloud, ...)
   or direct audio upload (mp3/wav/flac/m4a/...). Every submission carries a
   user tag (who added it), shown on set lists and searchable.
+- **Playlists**: SoundCloud sets, Spotify and Tidal playlist URLs are
+  ingested by metadata alone — no audio is downloaded or shazammed, the
+  tracks go straight into the library and the map. SoundCloud needs no
+  credentials; Spotify uses the Web API when `SPOTIFY_CLIENT_ID/SECRET`
+  are set (keyless embed fallback covers ~the first 50 tracks otherwise);
+  Tidal requires `TIDAL_CLIENT_ID/SECRET`.
 - **Segment**: 60-second chunks, ffmpeg stream copy (seconds, not minutes).
 - **History first, Shazam second**:
   - the same source URL returns the stored tracklist instantly;
@@ -32,6 +38,8 @@ per-track **confidence score**. Lives at `https://jaenib.com/shazet/`.
 - **Browser**: all sets, all recognized tracks across sets (with occurrence
   counts and which sets they appeared in), full-text search, genre chips,
   cover art, SoundCloud/YouTube lookup links.
+- **Map**: every artist on the library map carries its sources (sets and
+  playlists); the "sources" panel toggles each one on and off.
 - **Exports**: plain text (drop-in compatible with setseeker's `tracklists/`
   format) and `.cue`.
 
@@ -77,6 +85,9 @@ ssh root@82.165.45.100 "cd /srv/apps/shazet && git pull --ff-only \
 |----------|---------|
 | `SHAZET_TOKEN` | Access code required to submit jobs (browsing is public). Empty = open submissions. |
 | `SHAZET_DATA_DIR` | Data directory (default `./data`). |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify Web API app credentials for full playlist ingestion (optional; keyless embed fallback otherwise). |
+| `TIDAL_CLIENT_ID` / `TIDAL_CLIENT_SECRET` | Tidal developer credentials, required for Tidal playlists. |
+| `TIDAL_COUNTRY` | Country code for Tidal catalogue lookups (default `DE`). |
 
 Audio is a working file only: downloads, uploads, and segments are always
 deleted once a run finishes (or fails), and startup sweeps away anything

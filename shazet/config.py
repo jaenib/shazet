@@ -26,6 +26,24 @@ def submit_token() -> str:
     return os.environ.get("SHAZET_TOKEN", "").strip()
 
 
+def spotify_credentials() -> "tuple[str, str]":
+    return (
+        os.environ.get("SPOTIFY_CLIENT_ID", "").strip(),
+        os.environ.get("SPOTIFY_CLIENT_SECRET", "").strip(),
+    )
+
+
+def tidal_credentials() -> "tuple[str, str]":
+    return (
+        os.environ.get("TIDAL_CLIENT_ID", "").strip(),
+        os.environ.get("TIDAL_CLIENT_SECRET", "").strip(),
+    )
+
+
+def tidal_country() -> str:
+    return os.environ.get("TIDAL_COUNTRY", "DE").strip() or "DE"
+
+
 def ensure_dirs():
     for path in (DATA_DIR, AUDIO_DIR, SEGMENT_DIR):
         path.mkdir(parents=True, exist_ok=True)
