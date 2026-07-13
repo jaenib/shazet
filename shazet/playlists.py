@@ -78,7 +78,10 @@ def _fetch_soundcloud(url: str) -> "tuple[str, list[dict]]":
     except ModuleNotFoundError as exc:  # pragma: no cover - deploy-time dependency
         raise IngestError("yt-dlp is not installed") from exc
 
-    opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist", "skip_download": True}
+    # Full (non-flat) extraction: SoundCloud's set API returns id-only stubs
+    # in flat mode, so titles/genres only exist after per-track resolution
+    # (~1s per track, fine for a background job). Still metadata only.
+    opts = {"quiet": True, "no_warnings": True, "skip_download": True, "ignoreerrors": True}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if not isinstance(info, dict):
@@ -86,19 +89,26 @@ def _fetch_soundcloud(url: str) -> "tuple[str, list[dict]]":
 
     title = str(info.get("title") or "").strip()
     uploader = str(info.get("uploader") or "").strip()
-    if uploader and title:
+    if uploader and title and not title.lower().startswith(uploader.lower()):
         title = f"{uploader} - {title}"
 
     tracks = []
     for entry in info.get("entries") or []:
-        if not isinstance(entry, dict):
+        if not isinstance(entry, dict):  # unavailable/private tracks come back as None
             continue
         artist, track_title = split_artist_title(
             str(entry.get("title") or ""), str(entry.get("uploader") or "")
         )
         if not track_title:
             continue
-        tracks.append({"artist": artist, "title": track_title, "cover_url": ""})
+        tracks.append(
+            {
+                "artist": artist,
+                "title": track_title,
+                "genre": str(entry.get("genre") or "").strip(),
+                "cover_url": str(entry.get("thumbnail") or ""),
+            }
+        )
     return title, tracks
 
 

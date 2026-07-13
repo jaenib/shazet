@@ -139,7 +139,7 @@ class PlaylistWorkerTests(unittest.TestCase):
             )
 
         fake = ("Warmup Mix", [
-            {"artist": "Alpha", "title": "One", "cover_url": "c1.jpg"},
+            {"artist": "Alpha", "title": "One", "genre": "Trance", "cover_url": "c1.jpg"},
             {"artist": "Beta", "title": "Two", "cover_url": ""},
         ])
         with mock.patch.object(playlists, "fetch_playlist", return_value=fake):
@@ -156,6 +156,7 @@ class PlaylistWorkerTests(unittest.TestCase):
         self.assertTrue(all(segment["matched"] for segment in segments))
         self.assertEqual(segments[0]["artist"], "Alpha")
         self.assertEqual(segments[0]["track_key"], "alpha|one")
+        self.assertEqual(segments[0]["genre"], "Trance")
         self.assertEqual(segments[1]["cover_url"], "")
 
     def test_empty_playlist_fails_the_set(self):

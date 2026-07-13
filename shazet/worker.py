@@ -123,7 +123,7 @@ def _process_playlist(set_id: int, record: dict):
                 "artist": artist,
                 "title": track_title,
                 "track_key": f"{artist.lower()}|{track_title.lower()}",
-                "genre": "",
+                "genre": str(track.get("genre") or ""),
                 "album": "",
                 "cover_url": str(track.get("cover_url") or ""),
                 "bpm": None,
