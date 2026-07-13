@@ -11,6 +11,7 @@
         <input type="file" name="upload" accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aif,.aiff">
         <span>or upload audio</span>
       </label>
+      <input type="text" name="added_by" placeholder="your tag" maxlength="40" required>
       {% if token_required %}
       <input type="password" name="token" placeholder="access code" required>
       {% endif %}
@@ -43,6 +44,7 @@
     <li>
       <a href="{{ BASE }}/sets/{{ s.id }}">{{ s.title or s.source_url or ('set ' ~ s.id) }}</a>
       <span class="status status-{{ s.status }}">{{ s.status }}</span>
+      {% if s.added_by %}<span class="chip">{{ s.added_by }}</span>{% endif %}
       <span class="muted">{{ s.created_at }}</span>
     </li>
     {% endfor %}

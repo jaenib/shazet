@@ -78,7 +78,8 @@ a { color: var(--accent); }
   margin-top: 0.8rem;
 }
 
-.submit-form input[type="password"] {
+.submit-form input[type="password"],
+.submit-form input[type="text"] {
   padding: 0.5rem 0.7rem;
   border-radius: 8px;
   border: 1px solid var(--line);

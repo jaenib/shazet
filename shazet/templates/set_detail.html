@@ -7,6 +7,7 @@
     <span class="status status-{{ record.status }}">{{ record.status }}</span>
     {% if record.source_url %}<a href="{{ record.source_url }}" rel="noopener" target="_blank">source</a>{% endif %}
     {% if record.duration_seconds %}<span>{{ (record.duration_seconds // 60) | int }} min</span>{% endif %}
+    {% if record.added_by %}<span>added by <span class="chip">{{ record.added_by }}</span></span>{% endif %}
     <span>{{ matched_count }}/{{ segment_count }} segments matched</span>
     {% if record.cache_hits %}<span>{{ record.cache_hits }} answered from history</span>{% endif %}
   </p>

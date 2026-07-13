@@ -9,7 +9,7 @@
   </form>
   {% if sets %}
   <table class="tracklist">
-    <thead><tr><th>set</th><th>status</th><th>length</th><th>created</th></tr></thead>
+    <thead><tr><th>set</th><th>status</th><th>added by</th><th>length</th><th>created</th></tr></thead>
     <tbody>
       {% for s in sets %}
       <tr>
@@ -17,6 +17,7 @@
           {% if s.duplicate_of %}<span class="chip">duplicate of #{{ s.duplicate_of }}</span>{% endif %}
         </td>
         <td><span class="status status-{{ s.status }}">{{ s.status }}</span></td>
+        <td>{% if s.added_by %}<span class="chip">{{ s.added_by }}</span>{% endif %}</td>
         <td class="mono">{% if s.duration_seconds %}{{ (s.duration_seconds // 60) | int }} min{% endif %}</td>
         <td class="mono">{{ s.created_at }}</td>
       </tr>

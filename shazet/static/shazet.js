@@ -30,6 +30,15 @@
     setTimeout(poll, 4000);
   }
 
+  // Remember the submitter's tag between visits.
+  const tagInput = document.querySelector(".submit-form input[name=added_by]");
+  if (tagInput) {
+    tagInput.value = tagInput.value || localStorage.getItem("shazet-tag") || "";
+    tagInput.closest("form").addEventListener("submit", () => {
+      localStorage.setItem("shazet-tag", tagInput.value.trim());
+    });
+  }
+
   // Show chosen filename on the upload label.
   document.querySelectorAll(".file-label input[type=file]").forEach((input) => {
     input.addEventListener("change", () => {

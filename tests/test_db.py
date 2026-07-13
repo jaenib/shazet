@@ -82,6 +82,35 @@ class DbTests(unittest.TestCase):
         genre_names = [genre["name"] for genre in data["genres"]]
         self.assertIn("House", genre_names)
 
+    def test_added_by_is_stored_and_searchable(self):
+        with db.connect(self.db_path) as conn:
+            set_id = db.create_set(conn, "Set", "http://x/tag", "url", 60, added_by="miko")
+
+            record = db.get_set(conn, set_id)
+            by_tag = db.list_sets(conn, query="miko")
+            no_match = db.list_sets(conn, query="nobody")
+
+        self.assertEqual(record["added_by"], "miko")
+        self.assertEqual([s["id"] for s in by_tag], [set_id])
+        self.assertEqual(no_match, [])
+
+    def test_init_db_migrates_sets_table_without_added_by(self):
+        legacy_path = Path(self.tmpdir.name) / "legacy.db"
+        with db.connect(legacy_path) as conn:
+            # The sets table as it existed before the added_by column.
+            conn.execute(
+                "CREATE TABLE sets (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "title TEXT NOT NULL DEFAULT '', audio_sha256 TEXT NOT NULL DEFAULT '')"
+            )
+            conn.execute("INSERT INTO sets (title) VALUES ('old set')")
+            conn.commit()
+
+        db.init_db(legacy_path)
+
+        with db.connect(legacy_path) as conn:
+            row = conn.execute("SELECT added_by FROM sets").fetchone()
+        self.assertEqual(row["added_by"], "")
+
     def test_track_aggregation(self):
         with db.connect(self.db_path) as conn:
             set_id = db.create_set(conn, "Set", "http://x/agg", "url", 60)

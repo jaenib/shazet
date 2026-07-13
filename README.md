@@ -9,7 +9,8 @@ per-track **confidence score**. Lives at `https://jaenib.com/shazet/`.
 ## What it does
 
 - **Ingest**: any yt-dlp-supported URL (SoundCloud, YouTube, Mixcloud, ...)
-  or direct audio upload (mp3/wav/flac/m4a/...).
+  or direct audio upload (mp3/wav/flac/m4a/...). Every submission carries a
+  user tag (who added it), shown on set lists and searchable.
 - **Segment**: 60-second chunks, ffmpeg stream copy (seconds, not minutes).
 - **History first, Shazam second**:
   - the same source URL returns the stored tracklist instantly;

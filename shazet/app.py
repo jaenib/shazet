@@ -80,6 +80,7 @@ async def submit(request: Request):
         form = await request.form()
 
     source_url = str(form.get("source_url") or "").strip()
+    added_by = str(form.get("added_by") or "").strip()[:40]
     token = str(form.get("token") or "")
     force = str(form.get("force") or "")
     upload = form.get("upload")
@@ -89,6 +90,8 @@ async def submit(request: Request):
 
     has_upload = hasattr(upload, "filename") and (upload.filename or "").strip()
 
+    if not added_by:
+        raise HTTPException(status_code=400, detail="enter your tag so sets stay attributable")
     if not source_url and not has_upload:
         raise HTTPException(status_code=400, detail="provide a URL or an audio upload")
     if source_url and not ingest.is_supported_url(source_url):
@@ -108,6 +111,7 @@ async def submit(request: Request):
                 source_url="",
                 source_kind="upload",
                 segment_length=config.SEGMENT_LENGTH_SECONDS,
+                added_by=added_by,
             )
         else:
             set_id = db.create_set(
@@ -116,6 +120,7 @@ async def submit(request: Request):
                 source_url=source_url,
                 source_kind="url",
                 segment_length=config.SEGMENT_LENGTH_SECONDS,
+                added_by=added_by,
             )
 
     if has_upload:

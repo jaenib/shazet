@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sets (
   title TEXT NOT NULL DEFAULT '',
   source_url TEXT NOT NULL DEFAULT '',
   source_kind TEXT NOT NULL DEFAULT 'url',
+  added_by TEXT NOT NULL DEFAULT '',
   audio_sha256 TEXT NOT NULL DEFAULT '',
   duration_seconds REAL NOT NULL DEFAULT 0,
   segment_length INTEGER NOT NULL DEFAULT 60,
@@ -77,12 +78,21 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
 def init_db(db_path: Optional[Path] = None):
     with connect(db_path) as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
 
 
-def create_set(conn, title: str, source_url: str, source_kind: str, segment_length: int) -> int:
+def _migrate(conn):
+    """Bring pre-existing databases up to the current schema."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(sets)")}
+    if "added_by" not in columns:
+        conn.execute("ALTER TABLE sets ADD COLUMN added_by TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+
+
+def create_set(conn, title: str, source_url: str, source_kind: str, segment_length: int, added_by: str = "") -> int:
     cursor = conn.execute(
-        "INSERT INTO sets (title, source_url, source_kind, segment_length) VALUES (?, ?, ?, ?)",
-        (title, source_url, source_kind, segment_length),
+        "INSERT INTO sets (title, source_url, source_kind, segment_length, added_by) VALUES (?, ?, ?, ?, ?)",
+        (title, source_url, source_kind, segment_length, added_by),
     )
     conn.commit()
     return int(cursor.lastrowid)
@@ -108,10 +118,10 @@ def list_sets(conn, query: str = "", limit: int = 200) -> list[dict]:
             """
             SELECT DISTINCT s.* FROM sets s
             LEFT JOIN segments g ON g.set_id = s.id
-            WHERE s.title LIKE ? OR s.source_url LIKE ? OR g.artist LIKE ? OR g.title LIKE ?
+            WHERE s.title LIKE ? OR s.source_url LIKE ? OR s.added_by LIKE ? OR g.artist LIKE ? OR g.title LIKE ?
             ORDER BY s.created_at DESC LIMIT ?
             """,
-            (like, like, like, like, limit),
+            (like, like, like, like, like, limit),
         ).fetchall()
     else:
         rows = conn.execute("SELECT * FROM sets ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
