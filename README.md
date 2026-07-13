@@ -14,9 +14,13 @@ per-track **confidence score**. Lives at `https://jaenib.com/shazet/`.
 - **Playlists**: SoundCloud sets, Spotify and Tidal playlist URLs are
   ingested by metadata alone — no audio is downloaded or shazammed, the
   tracks go straight into the library and the map. SoundCloud needs no
-  credentials; Spotify uses the Web API when `SPOTIFY_CLIENT_ID/SECRET`
-  are set (keyless embed fallback covers ~the first 50 tracks otherwise);
-  Tidal requires `TIDAL_CLIENT_ID/SECRET`.
+  credentials; Spotify is read keyless via its embed page (~first 50–100
+  tracks; the Web API path needs `SPOTIFY_CLIENT_ID/SECRET` *and* a
+  Premium app owner since Spotify's Feb 2026 lockdown, and falls back to
+  the embed on any failure); Tidal requires `TIDAL_CLIENT_ID/SECRET`.
+- **Pasted tracklists**: "or paste a tracklist" on the home form takes
+  plain `Artist - Title` lines (numbering/timestamps tolerated) or an
+  Exportify CSV — the platform-proof way to ingest long playlists.
 - **Segment**: 60-second chunks, ffmpeg stream copy (seconds, not minutes).
 - **History first, Shazam second**:
   - the same source URL returns the stored tracklist instantly;

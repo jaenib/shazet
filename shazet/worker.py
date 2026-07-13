@@ -116,22 +116,27 @@ def _process_playlist(set_id: int, record: dict):
         if title and not record["title"]:
             db.update_set(conn, set_id, title=title)
         db.update_set(conn, set_id, progress_total=len(tracks))
-        for index, track in enumerate(tracks):
-            artist = str(track.get("artist") or "")
-            track_title = str(track.get("title") or "")
-            match = {
-                "artist": artist,
-                "title": track_title,
-                "track_key": f"{artist.lower()}|{track_title.lower()}",
-                "genre": str(track.get("genre") or ""),
-                "album": "",
-                "cover_url": str(track.get("cover_url") or ""),
-                "bpm": None,
-            }
-            db.insert_segment(conn, set_id, index, 0, "", match)
+        store_playlist_tracks(conn, set_id, tracks)
         db.update_set(
             conn, set_id, progress_done=len(tracks), status="done", completed_at=_now(conn)
         )
+
+
+def store_playlist_tracks(conn, set_id: int, tracks):
+    """Insert playlist tracks as matched segments (shared with pasted tracklists)."""
+    for index, track in enumerate(tracks):
+        artist = str(track.get("artist") or "")
+        track_title = str(track.get("title") or "")
+        match = {
+            "artist": artist,
+            "title": track_title,
+            "track_key": f"{artist.lower()}|{track_title.lower()}",
+            "genre": str(track.get("genre") or ""),
+            "album": "",
+            "cover_url": str(track.get("cover_url") or ""),
+            "bpm": None,
+        }
+        db.insert_segment(conn, set_id, index, 0, "", match)
 
 
 def _fetch_audio(set_id: int, record: dict):

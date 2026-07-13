@@ -6,6 +6,11 @@
   <p class="hint">Paste a SoundCloud / YouTube URL or upload an audio file. Known audio is answered from history without re-shazaming. Playlist links (SoundCloud sets, Spotify, Tidal) are added to the library by their metadata alone — nothing is downloaded.</p>
   <form action="{{ BASE }}/submit" method="post" enctype="multipart/form-data" class="submit-form">
     <input type="url" name="source_url" placeholder="https://soundcloud.com/... or https://youtube.com/...">
+    <details class="paste-details">
+      <summary>or paste a tracklist</summary>
+      <input type="text" name="paste_title" placeholder="playlist name" maxlength="120">
+      <textarea name="tracklist" rows="6" placeholder="Artist - Title&#10;Artist - Title&#10;(numbering and timestamps are fine, Exportify CSV works too)"></textarea>
+    </details>
     <div class="row">
       <label class="file-label">
         <input type="file" name="upload" accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aif,.aiff">

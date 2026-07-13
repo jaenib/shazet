@@ -41,6 +41,38 @@ class SplitArtistTitleTests(unittest.TestCase):
         self.assertEqual(playlists.split_artist_title("Just A Title", "Uploader"), ("Uploader", "Just A Title"))
 
 
+class PastedTracklistTests(unittest.TestCase):
+    def test_plain_and_decorated_lines(self):
+        text = """
+Final Tracklist:
+1. Alpha - One
+02) Beta - Two
+[00:12:34] Gamma - Three
+[01:00:00-01:04:00] Delta - Four
+12:34 Epsilon - Five
+Zeta\tSix
+just a title
+"""
+        tracks = playlists.parse_pasted_tracklist(text)
+        self.assertEqual([t["artist"] for t in tracks], ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", ""])
+        self.assertEqual(tracks[0]["title"], "One")
+        self.assertEqual(tracks[5]["title"], "Six")
+        self.assertEqual(tracks[6]["title"], "just a title")
+
+    def test_exportify_csv(self):
+        text = (
+            '"Track URI","Track Name","Artist Name(s)","Album Name","Genres"\n'
+            '"spotify:track:x","One","Alpha, Beta","Album","house, techno"\n'
+            '"spotify:track:y","Two","Gamma","Album2",""\n'
+        )
+        tracks = playlists.parse_pasted_tracklist(text)
+        self.assertEqual(len(tracks), 2)
+        self.assertEqual(tracks[0], {"artist": "Alpha, Beta", "title": "One", "genre": "house, techno", "cover_url": ""})
+
+    def test_empty_input_yields_no_tracks(self):
+        self.assertEqual(playlists.parse_pasted_tracklist("\n \n"), [])
+
+
 class SpotifyParsingTests(unittest.TestCase):
     def test_parse_spotify_items(self):
         items = [

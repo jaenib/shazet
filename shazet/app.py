@@ -84,6 +84,8 @@ async def submit(request: Request):
     token = str(form.get("token") or "")
     force = str(form.get("force") or "")
     upload = form.get("upload")
+    pasted = str(form.get("tracklist") or "").strip()
+    paste_title = str(form.get("paste_title") or "").strip()[:120]
 
     if not _submission_allowed(token):
         raise HTTPException(status_code=403, detail="wrong access code")
@@ -92,10 +94,33 @@ async def submit(request: Request):
 
     if not added_by:
         raise HTTPException(status_code=400, detail="enter your tag so sets stay attributable")
-    if not source_url and not has_upload:
-        raise HTTPException(status_code=400, detail="provide a URL or an audio upload")
+    if not source_url and not has_upload and not pasted:
+        raise HTTPException(status_code=400, detail="provide a URL, an audio upload, or a pasted tracklist")
     if source_url and not ingest.is_supported_url(source_url):
         raise HTTPException(status_code=400, detail="only http(s) URLs are supported")
+
+    # Pasted tracklists carry their own metadata: store them synchronously,
+    # no download, no worker, nothing heavy.
+    if pasted and not source_url and not has_upload:
+        tracks = playlists.parse_pasted_tracklist(pasted)
+        if not tracks:
+            raise HTTPException(status_code=400, detail="no readable 'Artist - Title' lines in the tracklist")
+        with db.connect() as conn:
+            set_id = db.create_set(
+                conn,
+                title=paste_title or "pasted tracklist",
+                source_url="",
+                source_kind="playlist",
+                segment_length=config.SEGMENT_LENGTH_SECONDS,
+                added_by=added_by,
+            )
+            worker.store_playlist_tracks(conn, set_id, tracks)
+            now = conn.execute("SELECT datetime('now')").fetchone()[0]
+            db.update_set(
+                conn, set_id,
+                status="done", progress_done=len(tracks), progress_total=len(tracks), completed_at=now,
+            )
+        return RedirectResponse(f"{BASE}/sets/{set_id}", status_code=303)
 
     with db.connect() as conn:
         # History first: a URL we already analyzed returns the existing tracklist.

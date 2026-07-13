@@ -64,6 +64,63 @@ def split_artist_title(raw: str, fallback_artist: str = "") -> "tuple[str, str]"
     return fallback_artist.strip(), raw.strip()
 
 
+# Leading noise on pasted tracklist lines: numbering ("07.", "3)") and/or
+# timestamps ("[01:23:45]", "12:34", "[00:01:00-00:04:00]").
+_LINE_NOISE = re.compile(
+    r"^\s*(?:\d+\s*[.)]\s*)?(?:\[?\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}:\d{2}(?::\d{2})?)?\]?\s+)?"
+)
+_HEADER_LINES = {"final tracklist", "tracklist"}
+
+
+def parse_pasted_tracklist(text: str) -> "list[dict]":
+    """Parse a pasted tracklist: 'Artist - Title' lines or an Exportify CSV.
+
+    Tolerates numbering, timestamps, and tab separation; platform-proof
+    fallback for playlists the streaming APIs won't hand over.
+    """
+    lines = text.splitlines()
+    first = next((line for line in lines if line.strip()), "").lower()
+    if "," in first and "track name" in first and "artist name" in first:
+        return _parse_exportify_csv(text)
+
+    tracks = []
+    for line in lines:
+        line = line.strip()
+        if not line or line.lower().rstrip(":") in _HEADER_LINES:
+            continue
+        line = _LINE_NOISE.sub("", line).strip()
+        if not line:
+            continue
+        if "\t" in line and " - " not in line:
+            artist, title = line.split("\t", 1)
+            artist, title = artist.strip(), title.strip()
+        else:
+            artist, title = split_artist_title(line)
+        if artist or title:
+            tracks.append({"artist": artist, "title": title, "genre": "", "cover_url": ""})
+    return tracks
+
+
+def _parse_exportify_csv(text: str) -> "list[dict]":
+    import csv
+    import io
+
+    tracks = []
+    for row in csv.DictReader(io.StringIO(text)):
+        title = str(row.get("Track Name") or "").strip()
+        artist = str(row.get("Artist Name(s)") or row.get("Artist Name") or "").strip()
+        if title or artist:
+            tracks.append(
+                {
+                    "artist": artist,
+                    "title": title,
+                    "genre": str(row.get("Genres") or "").strip(),
+                    "cover_url": "",
+                }
+            )
+    return tracks
+
+
 def _http_json(request: urllib.request.Request) -> dict:
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))

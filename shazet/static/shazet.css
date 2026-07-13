@@ -70,6 +70,36 @@ a { color: var(--accent); }
   font-size: 1rem;
 }
 
+.paste-details { margin-top: 0.6rem; }
+.paste-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  user-select: none;
+}
+.paste-details summary:hover { color: var(--text); }
+.paste-details input[type="text"] {
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.paste-details textarea {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
 .submit-form .row {
   display: flex;
   align-items: center;
