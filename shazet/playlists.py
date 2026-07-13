@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Optional
@@ -139,8 +140,15 @@ def _fetch_soundcloud(url: str) -> "tuple[str, list[dict]]":
     # in flat mode, so titles/genres only exist after per-track resolution
     # (~1s per track, fine for a background job). Still metadata only.
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "ignoreerrors": True}
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as exc:
+        if "404" in str(exc):
+            raise IngestError(
+                "SoundCloud can't find this playlist — check that it exists and is public, then try again"
+            ) from exc
+        raise
     if not isinstance(info, dict):
         raise IngestError("could not read the playlist")
 
@@ -251,8 +259,15 @@ def _fetch_spotify_embed(playlist_id: str) -> "tuple[str, list[dict]]":
         f"https://open.spotify.com/embed/playlist/{playlist_id}",
         headers={"User-Agent": "Mozilla/5.0"},
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        html = response.read().decode("utf-8", "replace")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            html = response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise IngestError(
+                "Spotify can't find this playlist — check that it exists and is public, then try again"
+            ) from exc
+        raise
     match = re.search(
         r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.DOTALL
     )
@@ -277,7 +292,8 @@ def _fetch_spotify_embed(playlist_id: str) -> "tuple[str, list[dict]]":
             tracks.append({"artist": artist, "title": track_title, "cover_url": ""})
     if not tracks:
         raise IngestError(
-            "the Spotify embed page had no tracks — set SPOTIFY_CLIENT_ID/SECRET to use the API"
+            "the Spotify embed page had no tracks — is the playlist public? "
+            "Private playlists can't be read; make it public and try again"
         )
     return title, tracks
 
@@ -330,7 +346,15 @@ def _fetch_tidal(url: str) -> "tuple[str, list[dict]]":
         f"?countryCode={config.tidal_country()}&include=items,items.artists"
     )
     while page_url:
-        page = _http_json(urllib.request.Request(page_url, headers=headers))
+        try:
+            page = _http_json(urllib.request.Request(page_url, headers=headers))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403, 404):
+                raise IngestError(
+                    "Tidal can't see this playlist — private playlists are invisible to the API. "
+                    "Check that it's set to public, then try again"
+                ) from exc
+            raise
         data = page.get("data")
         if isinstance(data, dict) and not title:
             title = str(((data.get("attributes") or {}).get("name")) or "").strip()

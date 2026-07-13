@@ -1,9 +1,11 @@
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
 from shazet import config, db, playlists, worker
+from shazet.ingest import IngestError
 
 
 class PlatformDetectionTests(unittest.TestCase):
@@ -148,6 +150,27 @@ class TidalParsingTests(unittest.TestCase):
         next_link = playlists._tidal_next_link(page)
         self.assertTrue(next_link.startswith(playlists.TIDAL_API))
         self.assertIn("include=", next_link)
+
+
+class TidalErrorTests(unittest.TestCase):
+    def test_private_playlist_404_becomes_check_public_hint(self):
+        responses = [
+            {"access_token": "t"},  # token request succeeds
+            urllib.error.HTTPError("url", 404, "Not Found", None, None),  # playlist is private
+        ]
+
+        def fake_http_json(request):
+            result = responses.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        with mock.patch.object(playlists.config, "tidal_credentials", return_value=("id", "secret")):
+            with mock.patch.object(playlists, "_http_json", side_effect=fake_http_json):
+                with self.assertRaises(IngestError) as ctx:
+                    playlists.fetch_playlist("https://tidal.com/playlist/d4cbfc4f-0000-0000-0000-000000000000")
+
+        self.assertIn("public", str(ctx.exception))
 
 
 class PlaylistWorkerTests(unittest.TestCase):
