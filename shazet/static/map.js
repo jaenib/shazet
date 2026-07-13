@@ -31,8 +31,15 @@
     };
   }
 
-  function genreHue(genre) {
-    return hashString(genre || "unknown") % 360;
+  // Color is a function of location on the field (everynoise-style): the hue
+  // walks the color wheel with the angle around the map center, so neighbors
+  // share hues and each region of the landscape gets its own tint.
+  function positionColor(x, y, name) {
+    const hue = ((Math.atan2(y, x) / Math.PI) * 180 + 360) % 360;
+    const radius = Math.sqrt(x * x + y * y);
+    const saturation = 45 + Math.min(1, radius / 520) * 40;
+    const lightness = 55 + (name ? hashString(name) % 18 : 8);
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
   // --- layout --------------------------------------------------------------
@@ -55,6 +62,15 @@
     const links = data.links
       .map(([a, b, weight, sets]) => ({ a: byName.get(a), b: byName.get(b), weight, sets: sets || [] }))
       .filter((link) => link.a && link.b);
+
+    // A playlist links every pair of its artists: a 100-track playlist is a
+    // 100-node clique whose springs collapse it into an unreadable blob.
+    // Damp spring force on high-degree nodes so big clouds stay spread out.
+    const degree = new Map();
+    for (const link of links) {
+      degree.set(link.a.name, (degree.get(link.a.name) || 0) + 1);
+      degree.set(link.b.name, (degree.get(link.b.name) || 0) + 1);
+    }
 
     const iterations = Math.min(220, 80 + nodes.length * 2);
     for (let step = 0; step < iterations; step++) {
@@ -87,7 +103,9 @@
         const dy = link.b.y - link.a.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const target = Math.max(60, 180 - link.weight * 25);
-        const force = ((dist - target) / dist) * 0.02 * Math.min(link.weight, 5) * cooling;
+        const crowd = Math.max(degree.get(link.a.name) || 1, degree.get(link.b.name) || 1);
+        const damp = 1 / Math.sqrt(1 + crowd / 8);
+        const force = ((dist - target) / dist) * 0.02 * Math.min(link.weight, 5) * cooling * damp;
         link.a.vx += dx * force;
         link.a.vy += dy * force;
         link.b.vx -= dx * force;
@@ -148,7 +166,8 @@
       label.textContent = genre.name.toLowerCase();
       label.style.left = `${cx + genre.x}px`;
       label.style.top = `${cy + genre.y}px`;
-      label.style.color = `hsla(${genreHue(genre.name)}, 60%, 70%, 0.28)`;
+      label.style.color = positionColor(genre.x, genre.y, "");
+      label.style.opacity = 0.3;
       canvas.appendChild(label);
     }
 
@@ -159,9 +178,7 @@
       label.style.left = `${cx + node.x}px`;
       label.style.top = `${cy + node.y}px`;
       label.style.fontSize = `${fontSize(node.hits, maxHits)}px`;
-      const hue = genreHue(node.genre);
-      const lightness = 58 + (hashString(node.name) % 18);
-      label.style.color = `hsl(${hue}, 72%, ${lightness}%)`;
+      label.style.color = positionColor(node.x, node.y, node.name);
       label.dataset.artist = node.name;
       label.addEventListener("mouseenter", () => highlight(node, result, true));
       label.addEventListener("mouseleave", () => highlight(node, result, false));
@@ -201,7 +218,7 @@
     document.getElementById("panel-artist").textContent = node.name;
     const genreChip = document.getElementById("panel-genre");
     genreChip.textContent = node.genre || "genre unknown";
-    genreChip.style.borderColor = `hsl(${genreHue(node.genre)}, 60%, 45%)`;
+    genreChip.style.borderColor = positionColor(node.x, node.y, node.name);
     document.getElementById("panel-meta").textContent =
       `${node.track_count} track${node.track_count === 1 ? "" : "s"} · ` +
       `${node.sets} set${node.sets === 1 ? "" : "s"} · ${node.hits} segment hits`;
@@ -336,6 +353,7 @@
         empty.hidden = false;
         return;
       }
+      empty.remove(); // display:flex in the CSS would beat the hidden attribute
       const result = layout(data);
       render(result);
       buildSourceToggles(data, result);

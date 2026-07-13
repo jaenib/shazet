@@ -325,6 +325,7 @@ footer {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+.map-empty[hidden] { display: none; }
 .map-empty {
   position: absolute;
   inset: 0;
