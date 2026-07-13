@@ -126,7 +126,13 @@ def _fetch_spotify(url: str) -> "tuple[str, list[dict]]":
     playlist_id = _spotify_playlist_id(url)
     client_id, client_secret = config.spotify_credentials()
     if client_id and client_secret:
-        return _fetch_spotify_api(playlist_id, client_id, client_secret)
+        try:
+            return _fetch_spotify_api(playlist_id, client_id, client_secret)
+        except Exception:
+            # Dev Mode apps are gated hard since Feb 2026 (Premium-owner
+            # requirement, owned-playlists-only items); the keyless embed
+            # still answers, so never let API access kill the job.
+            pass
     return _fetch_spotify_embed(playlist_id)
 
 
