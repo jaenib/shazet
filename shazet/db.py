@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS shazam_cache (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS genre_cache (
+  track_key TEXT PRIMARY KEY,
+  genre TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_segments_set ON segments(set_id, idx);
 CREATE INDEX IF NOT EXISTS idx_segments_track ON segments(track_key);
 CREATE INDEX IF NOT EXISTS idx_sets_sha ON sets(audio_sha256);
@@ -229,6 +235,22 @@ def cache_store(conn, sha256: str, match: Optional[dict]):
             match.get("cover_url", ""),
             match.get("bpm"),
         ),
+    )
+    conn.commit()
+
+
+def genre_cache_lookup(conn, track_key: str) -> Optional[str]:
+    """Cached genre for a track_key; None = never looked up, '' = known miss."""
+    if not track_key:
+        return None
+    row = conn.execute("SELECT genre FROM genre_cache WHERE track_key = ?", (track_key,)).fetchone()
+    return row["genre"] if row else None
+
+
+def genre_cache_store(conn, track_key: str, genre: str):
+    conn.execute(
+        "INSERT OR REPLACE INTO genre_cache (track_key, genre) VALUES (?, ?)",
+        (track_key, genre),
     )
     conn.commit()
 

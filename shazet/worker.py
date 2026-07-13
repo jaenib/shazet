@@ -6,9 +6,10 @@ import asyncio
 import queue
 import shutil
 import threading
+import time
 import traceback
 
-from . import config, db, ingest, playlists, recognizer, scoring, segmenter
+from . import config, db, enrich, ingest, playlists, recognizer, scoring, segmenter
 
 _jobs: "queue.Queue[int]" = queue.Queue()
 _worker_started = threading.Lock()
@@ -115,11 +116,86 @@ def _process_playlist(set_id: int, record: dict):
     with db.connect() as conn:
         if title and not record["title"]:
             db.update_set(conn, set_id, title=title)
-        db.update_set(conn, set_id, progress_total=len(tracks))
+        db.update_set(conn, set_id, status="enriching", progress_total=len(tracks))
+
+    enrich_tracks(set_id, tracks)
+
+    with db.connect() as conn:
         store_playlist_tracks(conn, set_id, tracks)
         db.update_set(
             conn, set_id, progress_done=len(tracks), status="done", completed_at=_now(conn)
         )
+
+
+def enrich_tracks(set_id: int, tracks):
+    """Fill in missing genres (Tidal/Spotify ship none) via keyless lookups.
+
+    Cached by track_key so each track is only ever asked about once.
+    """
+    for index, track in enumerate(tracks):
+        if not track.get("genre"):
+            artist = str(track.get("artist") or "")
+            title = str(track.get("title") or "")
+            key = f"{artist.lower()}|{title.lower()}"
+            with db.connect() as conn:
+                cached = db.genre_cache_lookup(conn, key)
+            if cached is not None:
+                track["genre"] = cached
+            else:
+                try:
+                    track["genre"] = enrich.lookup_genre(artist, title)
+                except Exception:
+                    track["genre"] = ""
+                with db.connect() as conn:
+                    db.genre_cache_store(conn, key, track["genre"])
+                time.sleep(enrich.LOOKUP_SPACING)
+        with db.connect() as conn:
+            db.update_set(conn, set_id, progress_done=index + 1)
+
+
+_backfill_lock = threading.Lock()
+
+
+def backfill_genres():
+    """Fill missing genres on already-stored tracks (cache-first, idempotent).
+
+    Covers pasted tracklists, playlists ingested before enrichment existed,
+    and Shazam matches that came back genre-less. Safe to run repeatedly:
+    every miss is cached, so settled tracks cost nothing.
+    """
+    if not _backfill_lock.acquire(blocking=False):
+        return  # a sweep is already running
+    try:
+        with db.connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT track_key, artist, title FROM segments "
+                "WHERE matched = 1 AND genre = '' AND track_key != ''"
+            ).fetchall()
+        for row in rows:
+            key = row["track_key"]
+            with db.connect() as conn:
+                genre = db.genre_cache_lookup(conn, key)
+            if genre is None:
+                try:
+                    genre = enrich.lookup_genre(row["artist"], row["title"])
+                except Exception:
+                    genre = ""
+                with db.connect() as conn:
+                    db.genre_cache_store(conn, key, genre)
+                time.sleep(enrich.LOOKUP_SPACING)
+            if genre:
+                with db.connect() as conn:
+                    conn.execute(
+                        "UPDATE segments SET genre = ? WHERE track_key = ? AND genre = ''",
+                        (genre, key),
+                    )
+                    conn.commit()
+    finally:
+        _backfill_lock.release()
+
+
+def start_genre_backfill():
+    threading.Thread(target=backfill_genres, name="shazet-genre-backfill", daemon=True).start()
 
 
 def store_playlist_tracks(conn, set_id: int, tracks):

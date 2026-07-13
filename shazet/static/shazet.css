@@ -162,7 +162,7 @@ button:hover { filter: brightness(1.08); }
 }
 .status-done { color: var(--high); border-color: var(--high); }
 .status-failed { color: var(--low); border-color: var(--low); }
-.status-recognizing, .status-downloading, .status-segmenting, .status-scoring, .status-queued, .status-fetching {
+.status-recognizing, .status-downloading, .status-segmenting, .status-scoring, .status-queued, .status-fetching, .status-enriching {
   color: var(--mid);
   border-color: var(--mid);
 }

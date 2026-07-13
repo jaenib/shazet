@@ -47,12 +47,14 @@
     const nodes = data.artists.map((artist) => {
       const rng = mulberry32(hashString(artist.name));
       const genreRng = mulberry32(hashString(artist.genre || "unknown"));
-      const genreAngle = genreRng() * Math.PI * 2;
-      const genreRadius = 220 + genreRng() * 260;
+      // Genre anchors live on a hash-seeded 2D field (not a polar ring
+      // around one origin, which made the whole map read as a circle).
+      const gx = (genreRng() - 0.5) * 980;
+      const gy = (genreRng() - 0.5) * 700;
       return {
         ...artist,
-        x: Math.cos(genreAngle) * genreRadius + (rng() - 0.5) * 220,
-        y: Math.sin(genreAngle) * genreRadius + (rng() - 0.5) * 220,
+        x: gx + (rng() - 0.5) * 240,
+        y: gy + (rng() - 0.5) * 240,
         vx: 0,
         vy: 0,
       };
@@ -314,33 +316,70 @@
   }
 
   // --- pan & zoom ------------------------------------------------------------
+  // One pointer pans; two pointers pinch-zoom around their midpoint (mobile).
+  const pointers = new Map();
   let dragging = null;
+  let pinch = null;
+
+  function zoomAround(mx, my, nextScale) {
+    const next = Math.max(0.25, Math.min(4, nextScale));
+    world.x = mx - ((mx - world.x) * next) / world.scale;
+    world.y = my - ((my - world.y) * next) / world.scale;
+    world.scale = next;
+    applyTransform();
+  }
+
   viewport.addEventListener("pointerdown", (event) => {
-    dragging = { x: event.clientX - world.x, y: event.clientY - world.y };
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     viewport.setPointerCapture(event.pointerId);
+    if (pointers.size === 1) {
+      dragging = { x: event.clientX - world.x, y: event.clientY - world.y };
+    } else {
+      dragging = null;
+      pinch = null; // measured fresh on the next move
+    }
   });
   viewport.addEventListener("pointermove", (event) => {
-    if (!dragging) return;
-    world.x = event.clientX - dragging.x;
-    world.y = event.clientY - dragging.y;
-    applyTransform();
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const rect = viewport.getBoundingClientRect();
+      const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const mx = (a.x + b.x) / 2 - rect.left;
+      const my = (a.y + b.y) / 2 - rect.top;
+      if (pinch) {
+        zoomAround(mx, my, world.scale * (dist / pinch.dist));
+        world.x += mx - pinch.mx;
+        world.y += my - pinch.my;
+        applyTransform();
+      }
+      pinch = { dist, mx, my };
+    } else if (dragging) {
+      world.x = event.clientX - dragging.x;
+      world.y = event.clientY - dragging.y;
+      applyTransform();
+    }
   });
-  viewport.addEventListener("pointerup", () => {
-    dragging = null;
-  });
+  function releasePointer(event) {
+    pointers.delete(event.pointerId);
+    pinch = null;
+    if (pointers.size === 1) {
+      const [p] = [...pointers.values()];
+      dragging = { x: p.x - world.x, y: p.y - world.y };
+    } else if (!pointers.size) {
+      dragging = null;
+    }
+  }
+  viewport.addEventListener("pointerup", releasePointer);
+  viewport.addEventListener("pointercancel", releasePointer);
   viewport.addEventListener(
     "wheel",
     (event) => {
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
-      const mx = event.clientX - rect.left;
-      const my = event.clientY - rect.top;
       const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const next = Math.max(0.25, Math.min(4, world.scale * factor));
-      world.x = mx - ((mx - world.x) * next) / world.scale;
-      world.y = my - ((my - world.y) * next) / world.scale;
-      world.scale = next;
-      applyTransform();
+      zoomAround(event.clientX - rect.left, event.clientY - rect.top, world.scale * factor);
     },
     { passive: false }
   );

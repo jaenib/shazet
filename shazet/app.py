@@ -22,6 +22,9 @@ templates.env.globals["BASE"] = BASE
 templates.env.globals["CONFIDENCE_HIGH"] = config.CONFIDENCE_HIGH
 templates.env.globals["CONFIDENCE_LOW"] = config.CONFIDENCE_LOW
 templates.env.globals["quote_plus"] = quote_plus
+# Cache-buster for static assets: StaticFiles sends no Cache-Control, so
+# browsers heuristically cache stale CSS/JS across deploys.
+templates.env.globals["STATIC_V"] = str(int(max(p.stat().st_mtime for p in STATIC_DIR.glob("*"))))
 
 
 @app.on_event("startup")
@@ -31,6 +34,7 @@ def startup():
     worker.cleanup_orphans()
     worker.start_worker()
     worker.requeue_unfinished()
+    worker.start_genre_backfill()
 
 
 @app.get("/", include_in_schema=False)
@@ -120,6 +124,7 @@ async def submit(request: Request):
                 conn, set_id,
                 status="done", progress_done=len(tracks), progress_total=len(tracks), completed_at=now,
             )
+        worker.start_genre_backfill()  # fill in genres for the pasted tracks
         return RedirectResponse(f"{BASE}/sets/{set_id}", status_code=303)
 
     with db.connect() as conn:

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}shazet{% endblock %}</title>
-  <link rel="stylesheet" href="{{ BASE }}/static/shazet.css">
+  <link rel="stylesheet" href="{{ BASE }}/static/shazet.css?v={{ STATIC_V }}">
 </head>
 <body>
   <header class="topbar">
@@ -22,6 +22,6 @@
   <footer>
     <span>shazet — tracklists from DJ sets, with receipts.</span>
   </footer>
-  <script src="{{ BASE }}/static/shazet.js"></script>
+  <script src="{{ BASE }}/static/shazet.js?v={{ STATIC_V }}"></script>
 </body>
 </html>

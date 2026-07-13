@@ -4,7 +4,7 @@ import urllib.error
 from pathlib import Path
 from unittest import mock
 
-from shazet import config, db, playlists, worker
+from shazet import config, db, enrich, playlists, worker
 from shazet.ingest import IngestError
 
 
@@ -173,6 +173,29 @@ class TidalErrorTests(unittest.TestCase):
         self.assertIn("public", str(ctx.exception))
 
 
+class EnrichTests(unittest.TestCase):
+    def test_deezer_answers_first(self):
+        responses = [
+            {"data": [{"album": {"id": 42}}]},
+            {"genres": {"data": [{"name": "All"}, {"name": "Chill Out/Trip-Hop/Lounge"}]}},
+        ]
+        with mock.patch.object(enrich, "_get_json", side_effect=responses):
+            self.assertEqual(enrich.lookup_genre("Mononome", "Forgot About Me"), "Chill Out/Trip-Hop/Lounge")
+
+    def test_falls_back_to_itunes_when_deezer_is_empty(self):
+        responses = [
+            {"data": []},  # deezer: no hit
+            {"results": [{"primaryGenreName": "Electronic"}]},  # itunes
+        ]
+        with mock.patch.object(enrich, "_get_json", side_effect=responses):
+            self.assertEqual(enrich.lookup_genre("Obscure", "Tune"), "Electronic")
+
+    def test_unknown_everywhere_is_empty(self):
+        responses = [{"data": []}, {"results": []}]
+        with mock.patch.object(enrich, "_get_json", side_effect=responses):
+            self.assertEqual(enrich.lookup_genre("Nobody", "Nothing"), "")
+
+
 class PlaylistWorkerTests(unittest.TestCase):
     """The playlist pipeline stores tracks straight to the DB — no audio, no Shazam."""
 
@@ -198,11 +221,14 @@ class PlaylistWorkerTests(unittest.TestCase):
             {"artist": "Beta", "title": "Two", "cover_url": ""},
         ])
         with mock.patch.object(playlists, "fetch_playlist", return_value=fake):
-            worker.process_set(set_id)
+            with mock.patch.object(enrich, "lookup_genre", return_value="Trip-Hop") as lookup:
+                with mock.patch.object(enrich, "LOOKUP_SPACING", 0):
+                    worker.process_set(set_id)
 
         with db.connect(self.db_path) as conn:
             record = db.get_set(conn, set_id)
             segments = db.get_segments(conn, set_id)
+            cached = db.genre_cache_lookup(conn, "beta|two")
 
         self.assertEqual(record["status"], "done")
         self.assertEqual(record["title"], "Warmup Mix")
@@ -211,8 +237,26 @@ class PlaylistWorkerTests(unittest.TestCase):
         self.assertTrue(all(segment["matched"] for segment in segments))
         self.assertEqual(segments[0]["artist"], "Alpha")
         self.assertEqual(segments[0]["track_key"], "alpha|one")
-        self.assertEqual(segments[0]["genre"], "Trance")
+        self.assertEqual(segments[0]["genre"], "Trance")  # came with a genre: no lookup
+        self.assertEqual(segments[1]["genre"], "Trip-Hop")  # enriched
+        self.assertEqual(cached, "Trip-Hop")
+        lookup.assert_called_once_with("Beta", "Two")
         self.assertEqual(segments[1]["cover_url"], "")
+
+    def test_backfill_fills_genreless_segments_from_cache_or_lookup(self):
+        with db.connect(self.db_path) as conn:
+            set_id = db.create_set(conn, "P", "", "playlist", 60, added_by="miko")
+            db.insert_segment(conn, set_id, 0, 0, "", {"artist": "A", "title": "T", "track_key": "a|t"})
+            db.genre_cache_store(conn, "a|t", "Dub")
+
+        with mock.patch.object(config, "DB_PATH", self.db_path):
+            with mock.patch.object(enrich, "lookup_genre") as lookup:
+                worker.backfill_genres()
+
+        with db.connect(self.db_path) as conn:
+            segments = db.get_segments(conn, set_id)
+        self.assertEqual(segments[0]["genre"], "Dub")
+        lookup.assert_not_called()  # answer came from the cache
 
     def test_empty_playlist_fails_the_set(self):
         with db.connect(self.db_path) as conn:

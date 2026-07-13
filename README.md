@@ -21,6 +21,11 @@ per-track **confidence score**. Lives at `https://jaenib.com/shazet/`.
 - **Pasted tracklists**: "or paste a tracklist" on the home form takes
   plain `Artist - Title` lines (numbering/timestamps tolerated) or an
   Exportify CSV — the platform-proof way to ingest long playlists.
+- **Genre enrichment**: Tidal/Spotify ship no genre metadata, so
+  genre-less tracks are looked up keyless on Deezer (specific genres)
+  with iTunes as fallback, cached per track, and backfilled for
+  already-stored tracks at startup — playlist artists land in real
+  genre regions on the map instead of an "unknown" blob.
 - **Segment**: 60-second chunks, ffmpeg stream copy (seconds, not minutes).
 - **History first, Shazam second**:
   - the same source URL returns the stored tracklist instantly;
