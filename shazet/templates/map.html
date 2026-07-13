@@ -4,8 +4,9 @@
 <section class="map-header">
   <h1>Library map</h1>
   <p class="hint">
-    Every set and playlist you add grows this map. Artists cluster when they appear together;
-    color follows position on the field, size is how often you've met them. Scroll to zoom, drag to wander, click a name for details.
+    Every set and playlist you add grows this space. Artists cluster when they appear together;
+    color follows position, size is how often you've met them. Drag to orbit, scroll or pinch to dive,
+    shift-drag to pan, click a name for details, double-click to fly to it.
   </p>
   <p class="map-stats mono">
     {{ stats.sets }} sets · {{ stats.playlists }} playlists · {{ stats.tracks }} tracks · {{ stats.artists }} artists · {{ stats.genres }} genres
@@ -17,7 +18,7 @@
     <summary>sources</summary>
     <div id="map-sources-list"></div>
   </details>
-  <div id="map-canvas" class="map-canvas"></div>
+  <canvas id="map-canvas" class="map-canvas3d"></canvas>
   <div id="map-empty" class="map-empty" hidden>
     <p>Nothing here yet.</p>
     <p><a href="{{ BASE }}/">Analyze your first set</a> and watch the map begin.</p>
