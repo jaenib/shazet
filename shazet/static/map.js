@@ -604,6 +604,22 @@
       empty.remove(); // display:flex in the CSS would beat the hidden attribute
       result = layout(data);
       maxHits = Math.max(...result.nodes.map((node) => node.hits), 1);
+
+      // frame the library: aim at the hit-weighted centroid and back off
+      // far enough that the whole landscape is in view
+      let sx = 0, sy = 0, sz = 0, sw = 0;
+      for (const node of result.nodes) {
+        sx += node.x * node.hits; sy += node.y * node.hits; sz += node.z * node.hits;
+        sw += node.hits;
+      }
+      cam.target = { x: sx / sw, y: sy / sw, z: sz / sw };
+      let radiusSq = 0;
+      for (const node of result.nodes) {
+        const dx = node.x - cam.target.x, dy = node.y - cam.target.y, dz = node.z - cam.target.z;
+        radiusSq = Math.max(radiusSq, dx * dx + dy * dy + dz * dz);
+      }
+      cam.dist = Math.max(650, Math.min(3400, Math.sqrt(radiusSq) * 1.75));
+
       buildSourceToggles(data);
       needsRender = true;
       requestAnimationFrame(loop);
